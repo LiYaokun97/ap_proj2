@@ -1,0 +1,4 @@
+[
+    SDef "s" (Const (IntVal 10)),
+    SExp (Var "s") 
+]

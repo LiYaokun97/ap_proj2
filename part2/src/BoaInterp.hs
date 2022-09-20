@@ -195,18 +195,10 @@ eval (Oper Mod e1 e2) = do
     _ -> abort (EBadArg "Can only mod Int")
 
 --  todo 不同类型之间无法比较
-eval (Oper Eq e1 e2) = do {v1 <- eval e1;
+eval (Oper Eq e1 e2) = do {
+      v1 <- eval e1;
       v2 <- eval e2;
-      case (v1, v2) of
-        (NoneVal, NoneVal) -> return TrueVal
-        (IntVal x, IntVal y) -> return $ if x ==y then TrueVal else FalseVal
-        (TrueVal, FalseVal) -> return FalseVal
-        (TrueVal, TrueVal) -> return TrueVal
-        (FalseVal, FalseVal) -> return TrueVal
-        (FalseVal, TrueVal) -> return FalseVal
-        (StringVal s1, StringVal s2) -> return $ if s1 == s2 then TrueVal else FalseVal
-        (ListVal s1, ListVal s2) -> return $ if s1 == s2 then TrueVal else FalseVal
-        _ ->  abort (EBadArg "Can only eq same types")
+      return $ if v1 == v2 then TrueVal else FalseVal
     }
 
 eval (Oper Less e1 e2) = do
@@ -232,16 +224,7 @@ eval (Oper In e1 mList) = do
 
 eval (Not exp) = do
   v1 <- eval exp
-  case v1 of
-    NoneVal -> return TrueVal
-    TrueVal -> return FalseVal
-    FalseVal -> return TrueVal
-    IntVal 0 -> return TrueVal
-    IntVal x -> return FalseVal
-    StringVal "" -> return TrueVal
-    StringVal s -> return FalseVal
-    ListVal [] -> return TrueVal
-    ListVal s -> return FalseVal
+  return $ if truthy v1 then TrueVal else FalseVal
 
 eval (List []) = do
     return $ ListVal []
@@ -263,12 +246,47 @@ eval (Call fn expList) = do
     case listVal of
       ListVal accListVal -> apply fn accListVal
 
+eval (Compr exp []) = do eval exp
+
+eval (Compr exp [CCIf q]) = do
+  qRes <- eval q 
+  case qRes of 
+    TrueVal -> eval exp >>= \x -> return $ ListVal [x]
+    FalseVal -> return $ ListVal []
+  
+eval (Compr exp ((CCIf q):qs)) = do
+  qRes <- eval q 
+  case qRes of 
+    TrueVal -> eval (Compr exp qs)
+    FalseVal -> return $ ListVal []
+
+eval (Compr exp ((CCFor vname q):qs)) = do
+  qRes <- eval q
+  case qRes of 
+    ListVal l -> do 
+      qsRes <- eval (Compr exp qs)
+      case qsRes of 
+        ListVal qsL -> return $ ListVal (concat (replicate (length l) qsL))
+    _ -> abort (EBadArg "the result of CCFor should be a list")
+
 
 exec :: Program -> Comp ()
-exec [] = Comp{runComp = const (Right (), [""])}
+exec [SDef vname exp] = do
+  value <- expComp
+  withBinding vname value expComp
+  return ()
+  where expComp = eval exp
+
+exec [SExp exp] = do 
+  eval exp
+  return ()
+
 exec ((SDef vname exp):stmts) = do
-  eval exp >>= (\v -> withBinding vname v (exec []))
+  value <- expComp
+  withBinding vname value expComp
   exec stmts
+  where expComp = eval exp
+  
 exec ((SExp exp):stmts) = do 
   eval exp
   exec stmts
