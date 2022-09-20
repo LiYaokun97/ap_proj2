@@ -19,19 +19,19 @@ type Env = [(VName, Value)]
 data RunError = EBadVar VName | EBadFun FName | EBadArg String
   deriving (Eq, Show)
 
-newtype Comp a = Comp {runComp :: Env -> (Either RunError a, [String]) }
+newtype Comp a  = Comp {runComp :: Env -> (Either RunError a, [String]) }
 
 instance Monad Comp where
   return x = Comp (const (Right x, []) )
   (>>=) :: Comp a -> (a -> Comp b) -> Comp b
-  comp0 >>= f = Comp {runComp = \env -> let (either, results) = runComp comp0 env in
-   case either of
-     Left runError -> (Left runError, results)
-     Right a -> let (either2, r') = runComp (f a) env in
-      case either2 of
-        Left e -> (Left e , results ++ r')
-        Right a -> (Right a, results ++ r')
+  m >>= f = Comp {runComp = \env ->
+    case runComp m env of
+        (Left e, s) -> (Left e, s)
+        (Right a, s) -> case runComp (f a) env of
+                (Left e, s') -> (Left e, s ++ s')
+                (Right a, s')-> (Right a, s ++ s')
       }
+
 
 -- You shouldn't need to modify these
 instance Functor Comp where
@@ -59,18 +59,8 @@ look v = Comp {runComp = \env -> if (isVarInEnv env v)
   }
 
 
-addVarToEnv :: VName -> Value -> Env -> Env
-addVarToEnv v value env = if isVarInEnv env v
-  then
-    filter (\(key, _) -> key /= v) env ++ [(v, value)]
-  else
-    env ++ [(v, value)]
-
 withBinding :: VName -> Value -> Comp a -> Comp a
-withBinding v value comp0 = Comp {runComp = \env ->
-  let newEnv = addVarToEnv v value env in runComp comp0 newEnv
-  }
-
+withBinding v value comp0 = Comp {runComp = \env -> runComp comp0 ((v, value):env)}
 
 output :: String -> Comp ()
 output s = Comp{runComp = \env -> (Right (), [s])}
@@ -249,54 +239,40 @@ eval (Call fn expList) = do
 eval (Compr exp []) = do eval exp
 
 eval (Compr exp [CCIf q]) = do
-  qRes <- eval q 
-  case qRes of 
+  qRes <- eval q
+  case qRes of
     TrueVal -> eval exp >>= \x -> return $ ListVal [x]
     FalseVal -> return $ ListVal []
-  
+
 eval (Compr exp ((CCIf q):qs)) = do
-  qRes <- eval q 
-  case qRes of 
+  qRes <- eval q
+  case qRes of
     TrueVal -> eval (Compr exp qs)
     FalseVal -> return $ ListVal []
 
 eval (Compr exp ((CCFor vname q):qs)) = do
   qRes <- eval q
-  case qRes of 
-    ListVal l -> do 
+  case qRes of
+    ListVal l -> do
       qsRes <- eval (Compr exp qs)
-      case qsRes of 
+      case qsRes of
         ListVal qsL -> return $ ListVal (concat (replicate (length l) qsL))
     _ -> abort (EBadArg "the result of CCFor should be a list")
 
-
 exec :: Program -> Comp ()
-exec [SDef vname exp] = do
-  value <- expComp
-  withBinding vname value expComp
-  return ()
-  where expComp = eval exp
-
-exec [SExp exp] = do 
-  eval exp
-  return ()
-
+exec [] = do return ()
 exec ((SDef vname exp):stmts) = do
-  value <- expComp
-  withBinding vname value expComp
-  exec stmts
-  where expComp = eval exp
-  
-exec ((SExp exp):stmts) = do 
+      value <- eval exp
+      withBinding vname value (exec stmts)
+      
+exec ((SExp exp):stmts) = do
   eval exp
   exec stmts
-
--- newtype Comp a = Comp {runComp :: Env -> (Either RunError a, [String]) }
 
 execute :: Program -> ([String], Maybe RunError)
 execute [] = ([], Nothing)
-execute stmts = (snd result, case fst result of 
+execute stmts = let result = runComp (exec stmts) [] in
+  (snd result, case fst result of
     Left runerr -> Just runerr
     Right _ -> Nothing
   )
-  where result = runComp (exec stmts) []

@@ -1,3 +1,5 @@
 [
-SExp (Call "print" [Const (IntVal 2), Const (ListVal [ (IntVal 100), ListVal [(IntVal 32), IntVal 12] ,  (StringVal "xyz")]) ] )
+    SDef "x" (Const (IntVal 2)),
+    SExp (Var "x"),
+    SExp (Call "print" [Var "x"])
 ]

@@ -1,4 +1,4 @@
 [
-    SDef "s" (Const (IntVal 10)),
-    SExp (Var "s") 
+    SExp (Call "print" [Call "range" [Const (IntVal 1), Const (IntVal 10), Const (IntVal 2)]]) 
 ]
+
