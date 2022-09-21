@@ -3,6 +3,7 @@
 {-# LANGUAGE InstanceSigs #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Eta reduce" #-}
+{-# HLINT ignore "Use const" #-}
 
 module BoaInterp
   (Env, RunError(..), Comp(..),
@@ -80,7 +81,6 @@ truthy (ListVal []) = False
 truthy (ListVal l) = True
 
 
---  todo 补充剩余的
 operate :: Op -> Value -> Value -> Either String Value
 operate Plus (IntVal x) (IntVal y) = Right (IntVal (x + y))
 operate Minus (IntVal x) (IntVal y) = Right (IntVal (x - y))
@@ -117,19 +117,20 @@ apply "range" [IntVal v1, IntVal v2] = apply "range" [IntVal v1, IntVal v2, IntV
 apply "range" [IntVal v1] = apply "range" [IntVal 0, IntVal v1, IntVal 1]
 apply "range" _ = abort (EBadArg "the parameters of range is wrong")
 
--- newtype Comp a = Comp {runComp :: Env -> (Either RunError a, [String]) }
--- todo print具有多个参数时，中间需要用空格隔开
--- todo Comp [String]中，每个element是一行么？
 apply "print" [] = return NoneVal
-apply "print" (x:xs) = do
-  v1 <- printRes x
-  v2 <- apply "print" xs
-  return NoneVal
-  where
-    printRes :: Value -> Comp Value
-    printRes val = Comp{runComp = const (Right NoneVal, [value2String val])}
-    -- printResWithSpace :: Value -> Comp Value
-    -- printResWithSpace val = Comp{runComp = const (Right NoneVal, [value2String val ++ " "])}
+apply "print" argList = Comp{runComp = \env -> (Right NoneVal, [getPrintResult argList])}
+
+getPrintResult :: [Value] -> String
+getPrintResult argList = fst (foldl
+  (\acc x ->
+    (if (snd acc + 1) == length argList
+      then fst acc ++ value2String x
+      else fst acc ++ value2String x ++ " ",
+      snd acc + 1
+    )
+  )
+  ("" , 0)
+  argList)
 
 
 value2String :: Value -> String
@@ -236,14 +237,14 @@ eval (Call fn expList) = do
                     ListVal accListVal -> return $ ListVal(accListVal ++ [value]))
                   (return $ ListVal []) expList
     case listVal of
-      ListVal accListVal -> apply fn accListVal
+      ListVal argList -> apply fn argList
 
 eval (Compr exp []) = do eval exp
 
 eval (Compr exp [CCIf q]) = do
   qRes <- eval q
   case qRes of
-    TrueVal -> eval exp >>= \x -> return $ ListVal [x]
+    TrueVal -> compValueList2CompValue [eval exp]
     FalseVal -> return $ ListVal []
 
 eval (Compr exp ((CCIf q):qs)) = do
@@ -251,6 +252,14 @@ eval (Compr exp ((CCIf q):qs)) = do
   case qRes of
     TrueVal -> eval (Compr exp qs)
     FalseVal -> return $ ListVal []
+
+eval (Compr exp [CCFor vname q]) = do
+  qRes <- eval q
+  case qRes of
+    ListVal l -> let ok p | p `elem` l = [withBinding vname p (eval exp)]
+                     ok _ = []
+                     in compValueList2CompValue (concatMap ok l)
+    _ -> abort (EBadArg "the result of CCFor should be a list")
 
 eval (Compr exp ((CCFor vname q):qs)) = do
   qRes <- eval q
@@ -260,14 +269,19 @@ eval (Compr exp ((CCFor vname q):qs)) = do
                   in compValueList2CompValue (concatMap ok l)
     _ -> abort (EBadArg "the result of CCFor should be a list")
 
-
+{-
+  compValueList2CompValue: helper function for eval Compr expression
+  when doing concatMap in eval Compr, the return type is [Comp Value], 
+  it need be transformed to Comp Value, to be specific, Comp ListVal [Value] 
+-}
 compValueList2CompValue :: [Comp Value] -> Comp Value
-compValueList2CompValue compList = foldl (\acc x -> 
-    do 
+compValueList2CompValue compList = foldl (\acc x ->
+    do
       value <- x
-      accValue <- acc  
-      case accValue of 
-        ListVal accList -> return $ ListVal (accList ++ [value])
+      accValue <- acc
+      case (value ,accValue) of
+        (ListVal [], ListVal accList) -> return $ ListVal accList
+        (_, ListVal accList) -> return $ ListVal (accList ++ [value])
   ) (return $ ListVal []) compList
 
 exec :: Program -> Comp ()
@@ -275,7 +289,7 @@ exec [] = do return ()
 exec ((SDef vname exp):stmts) = do
       value <- eval exp
       withBinding vname value (exec stmts)
-      
+
 exec ((SExp exp):stmts) = do
   eval exp
   exec stmts

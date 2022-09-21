@@ -1,0 +1,7 @@
+[SDef "squares"
+      (Compr  (Var "x")
+             [CCFor "x" (Call "range" [Const (IntVal 10)])]),
+ SExp (Call "print" [List [Const (IntVal 123),
+                           List [Var "squares",
+                                 Call "print" [Const (IntVal 321)]]]])
+                                 ]
