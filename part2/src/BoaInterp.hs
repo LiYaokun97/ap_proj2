@@ -1,6 +1,8 @@
 -- Skeleton file for Boa Interpreter. Edit only definitions with 'undefined'
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 {-# LANGUAGE InstanceSigs #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Eta reduce" #-}
 
 module BoaInterp
   (Env, RunError(..), Comp(..),
@@ -253,11 +255,20 @@ eval (Compr exp ((CCIf q):qs)) = do
 eval (Compr exp ((CCFor vname q):qs)) = do
   qRes <- eval q
   case qRes of
-    ListVal l -> do
-      qsRes <- eval (Compr exp qs)
-      case qsRes of
-        ListVal qsL -> return $ ListVal (concat (replicate (length l) qsL))
+    ListVal l -> let ok p | p `elem` l = [withBinding vname p (eval (Compr exp qs))]
+                     ok _ = []
+                  in compValueList2CompValue (concatMap ok l)
     _ -> abort (EBadArg "the result of CCFor should be a list")
+
+
+compValueList2CompValue :: [Comp Value] -> Comp Value
+compValueList2CompValue compList = foldl (\acc x -> 
+    do 
+      value <- x
+      accValue <- acc  
+      case accValue of 
+        ListVal accList -> return $ ListVal (accList ++ [value])
+  ) (return $ ListVal []) compList
 
 exec :: Program -> Comp ()
 exec [] = do return ()
