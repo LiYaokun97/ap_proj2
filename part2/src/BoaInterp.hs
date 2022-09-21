@@ -25,7 +25,7 @@ data RunError = EBadVar VName | EBadFun FName | EBadArg String
 newtype Comp a  = Comp {runComp :: Env -> (Either RunError a, [String]) }
 
 instance Monad Comp where
-  return x = Comp (const (Right x, []) )
+  return x = Comp (\env -> (Right x, []))
   (>>=) :: Comp a -> (a -> Comp b) -> Comp b
   m >>= f = Comp {runComp = \env ->
     case runComp m env of
@@ -61,9 +61,15 @@ look v = Comp {runComp = \env -> if (isVarInEnv env v)
     (Left (EBadVar v), [] )
   }
 
+addVarToEnv :: VName -> Value -> Env -> Env
+addVarToEnv v value env = if isVarInEnv env v
+  then
+    filter (\(key, _) -> key /= v) env ++ [(v, value)]
+  else
+    env ++ [(v, value)]
 
 withBinding :: VName -> Value -> Comp a -> Comp a
-withBinding v value comp0 = Comp {runComp = \env -> runComp comp0 ((v, value):env)}
+withBinding v value comp0 = Comp {runComp = \env -> runComp comp0 (addVarToEnv v value env)}
 
 output :: String -> Comp ()
 output s = Comp{runComp = \env -> (Right (), [s])}
@@ -111,7 +117,7 @@ operate In v (ListVal mList) = if foldl (\acc x -> (operate Eq x v == Right True
 apply :: FName -> [Value] -> Comp Value
 apply "range" [IntVal v1, IntVal v2, IntVal 0] = abort (EBadArg "the step in range can not be 0")
 apply "range" [IntVal v1, IntVal v2, IntVal v3] =  return $ ListVal (map IntVal l)
-  where l = [x | x <- [v1..v2], x /= v2, (x - v1) `mod` v3 == 0]
+  where l = [x | x <- [v1..v2-1], (x - v1) `mod` v3 == 0]
 
 apply "range" [IntVal v1, IntVal v2] = apply "range" [IntVal v1, IntVal v2, IntVal 1]
 apply "range" [IntVal v1] = apply "range" [IntVal 0, IntVal v1, IntVal 1]
@@ -217,7 +223,7 @@ eval (Oper In e1 mList) = do
 
 eval (Not exp) = do
   v1 <- eval exp
-  return $ if truthy v1 then TrueVal else FalseVal
+  return $ if truthy v1 then FalseVal else TrueVal
 
 eval (List []) = do
     return $ ListVal []
@@ -239,8 +245,6 @@ eval (Call fn expList) = do
     case listVal of
       ListVal argList -> apply fn argList
 
-eval (Compr exp []) = do eval exp
-
 eval (Compr exp [CCIf q]) = do
   qRes <- eval q
   case qRes of
@@ -257,16 +261,16 @@ eval (Compr exp [CCFor vname q]) = do
   qRes <- eval q
   case qRes of
     ListVal l -> let ok p | p `elem` l = [withBinding vname p (eval exp)]
-                     ok _ = []
-                     in compValueList2CompValue (concatMap ok l)
+                     in let res = map ok l
+                     in compValueList2CompValue (concat res)
     _ -> abort (EBadArg "the result of CCFor should be a list")
 
 eval (Compr exp ((CCFor vname q):qs)) = do
   qRes <- eval q
   case qRes of
     ListVal l -> let ok p | p `elem` l = [withBinding vname p (eval (Compr exp qs))]
-                     ok _ = []
-                  in compValueList2CompValue (concatMap ok l)
+                          in let res = map ok l
+                          in compValueList2CompValue (concat res)
     _ -> abort (EBadArg "the result of CCFor should be a list")
 
 {-
@@ -274,15 +278,17 @@ eval (Compr exp ((CCFor vname q):qs)) = do
   when doing concatMap in eval Compr, the return type is [Comp Value], 
   it need be transformed to Comp Value, to be specific, Comp ListVal [Value] 
 -}
-compValueList2CompValue :: [Comp Value] -> Comp Value
+compValueList2CompValue :: [Comp Value]-> Comp Value
 compValueList2CompValue compList = foldl (\acc x ->
     do
       value <- x
       accValue <- acc
       case (value ,accValue) of
         (ListVal [], ListVal accList) -> return $ ListVal accList
-        (_, ListVal accList) -> return $ ListVal (accList ++ [value])
+        (ListVal valueList, ListVal accList) -> return $ ListVal (accList ++ valueList)
+        (_ , ListVal accList) -> return $ ListVal (accList ++ [value])
   ) (return $ ListVal []) compList
+  
 
 exec :: Program -> Comp ()
 exec [] = do return ()
