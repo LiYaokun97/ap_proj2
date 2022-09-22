@@ -1,7 +1,9 @@
-[     SDef "x" (Const (IntVal 100)),
-
-      SDef "xs" (Compr (Var "x") [CCIf (Const TrueVal)]),
-
-      SExp (Call "print" [Var "xs"])
-
-]
+[SDef "squares"
+      (Compr (Oper Times (Var "x") (Var "x"))
+             [CCFor "x" (Call "range" [Const (IntVal 5)])]),
+ SExp (Call "print" [Const (StringVal "squares:"), Var "squares"]),
+ SExp (Call "print" [Const (StringVal "Odd squares:"),
+                     Compr (Var "x") [CCFor "x" (Var "squares"),
+                                      CCIf (Oper Eq (Oper Mod (Var "x")
+                                                              (Const (IntVal 2)))
+                                                    (Const (IntVal 1)))]])]

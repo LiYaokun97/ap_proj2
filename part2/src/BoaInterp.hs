@@ -166,7 +166,7 @@ value2String NoneVal = "None"
 value2String TrueVal = "True"
 value2String FalseVal = "False"
 value2String (IntVal x) = show x
-value2String (StringVal s) = s       -- todo Strings are printed directly, without any outer quotes
+value2String (StringVal s) = s      
 value2String (ListVal l) = "[" ++
   fst
     (foldl
@@ -205,6 +205,7 @@ eval (Oper Div e1 e2) = do
   v1 <- eval e1
   v2 <- eval e2
   case (v1, v2) of
+    (IntVal _, IntVal 0) -> abort (EBadArg "divide by zero")
     (IntVal x, IntVal y) -> return $ IntVal (x `div` y)
     _ -> abort (EBadArg "Can only div Int")
 
@@ -212,6 +213,7 @@ eval (Oper Mod e1 e2) = do
   v1 <- eval e1
   v2 <- eval e2
   case (v1, v2) of
+    (IntVal _, IntVal 0) -> abort (EBadArg "mod by zero")
     (IntVal x, IntVal y) -> return $ IntVal (x `mod` y)
     _ -> abort (EBadArg "Can only mod Int")
 
@@ -271,60 +273,32 @@ eval (Call fn expList) = do
   through concatMap. The link above provide formula to do that, which is really helpful.
   https://www.haskell.org/onlinereport/haskell2010/haskellch3.html#x8-420003.11
 -}
+eval (Compr exp clauseList) = do
+    valueList <- clauseHelper exp clauseList
+    return (ListVal valueList)
 
-eval (Compr exp []) = do
-  expValue <- eval exp
-  return $ ListVal [expValue]
+clauseHelper :: Exp -> [CClause] -> Comp [Value]
+clauseHelper exp clauseList = case clauseList of
+  [] -> sequence [eval exp]
+  x:xs -> case x of
+    CCIf expIf -> do
+      value <- eval expIf
+      (if truthy value
+        then clauseHelper exp xs
+        else return [])
 
-eval (Compr exp ((CCIf q):qs)) = do
-  qRes <- eval q
-  ifRes <- eval (Not (Const qRes))
-  case ifRes of
-    FalseVal -> eval (Compr exp qs)
-    TrueVal -> return $ ListVal []
-    _ -> abort (EBadArg "if only accept Bool value")
-
--- eval (Compr exp [CCFor vname q]) = do
---   qRes <- eval q
---   case qRes of
---     ListVal l -> let ok p = [withBinding vname p (eval exp)]
---                      in compValueList2CompValue (concat $ leftMap ok l)
---     _ -> abort (EBadArg "the result of CCFor should be a list")
-
-eval (Compr exp ((CCFor vname q):qs)) = do
-  qRes <- eval q
-  case qRes of
-    ListVal l -> let ok p = [withBinding vname p (eval (if null qs then exp else Compr exp qs))]
-                  in compValueList2CompValue (concat $ leftMap ok l)
-    _ -> abort (EBadArg "the result of CCFor should be a list")
-
-eval _ = abort (EBadArg "can not eval this expression")
-
-{-
-  leftMap : helper function for eval Compr expression
-  If we use map from standard library, the last expression in the
-  list will be evaluated first, which is actually not what we want.
-  So, we have to implement a left first version of map, that's exactly
-  what leftMap does.
--}
-leftMap :: (a -> b) -> [a] -> [b]
-leftMap f l = foldl (\acc x -> f x : acc) [] l
-
-{-
-  compValueList2CompValue: helper function for eval Compr expression
-  when doing concatMap in eval Compr, the return type is [Comp Value],
-  it need be transformed to Comp Value, to be specific, Comp ListVal [Value]
--}
-compValueList2CompValue :: [Comp Value]-> Comp Value
-compValueList2CompValue compList = foldl (\acc x ->
-    do
-      value <- x
-      accValue <- acc
-      case (value ,accValue) of
-        (ListVal [], ListVal accList) -> return $ ListVal accList
-        (_ , ListVal accList) -> return $ ListVal (value : accList)
-  ) (return $ ListVal []) compList
-
+    CCFor vname expFor -> do
+      l <- eval expFor
+      case l of
+        {- 
+          actually the following expression is doing ConcatMap, because we have to return 
+          type Comp Value, we need to use sequence to do some special operations to get it.
+        -}
+        ListVal valueList -> do
+          result <- sequence [withBinding vname value (clauseHelper exp xs)| value <- valueList]
+          return (concat result)
+        _ -> sequence [abort (EBadArg "the expression for CCFor must be list")]
+    
 
 exec :: Program -> Comp ()
 exec [] = do return ()

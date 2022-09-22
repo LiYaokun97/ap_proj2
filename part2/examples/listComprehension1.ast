@@ -4,5 +4,18 @@
             [CCFor "x" (Call "range" [(Const (IntVal 1)), (Const (IntVal 3))]),
                 CCFor "y" (List [(Const (StringVal "a")), (Const (StringVal "bc"))])       ]
     ),
-    SExp (Call "print" [Var "mylist"])
+    SExp (Call "print" [Var "mylist"]),
+    
+    SDef "mylist2" (
+        Compr (List [Var "x", Var "y"]) 
+            [CCFor "x" (Call "range" [(Const (IntVal 1)), (Const (IntVal 3))]),
+                CCFor "y" (List [(Const (StringVal "a")), (Const (StringVal "bc"))])       ]
+    ),
+    SExp (Call "print" [Const (StringVal "mylist2"), Var "mylist2"]),
+
+    SDef "mylist3" (
+        Compr (List [Var "x", Var "x"]) 
+            [CCFor "x" (Call "range" [(Const (IntVal 1)), (Const (IntVal 3))])     ]
+    ),
+    SExp (Call "print" [Const (StringVal "mylist3"), Var "mylist3"])
 ]

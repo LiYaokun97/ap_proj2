@@ -5,7 +5,3 @@
              ]),
  SExp (Call "print" [Var "squares"])
 ]
-
-
-output:
-[]
