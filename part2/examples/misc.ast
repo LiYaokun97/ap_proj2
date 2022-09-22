@@ -23,7 +23,8 @@ SDef "testlist" (Compr (Var "x")
              [CCFor "x" (Call "range" [Const (IntVal 2),
                                        Oper Times (Var "n") (Var "n")]),
               CCIf (Not (Oper In (Var "x") (Var "composites")))]),
- SExp (Call "print" [Var "testlist"]),      
+ SExp (Call "print" [Var "testlist"]),
  SExp (Compr (Call "print" [Var "x"])
              [CCFor "x" (Call "range" [Const (IntVal 2),
-                                       Const (IntVal 5)])])]
+                                       Oper Times (Var "n") (Var "n")]),
+              CCIf (Not (Oper In (Var "x") (Var "composites")))])]
