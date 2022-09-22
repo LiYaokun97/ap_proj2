@@ -260,18 +260,27 @@ eval (Compr exp ((CCIf q):qs)) = do
 eval (Compr exp [CCFor vname q]) = do
   qRes <- eval q
   case qRes of
-    ListVal l -> let ok p | p `elem` l = [withBinding vname p (eval exp)]
-                     in let res = map ok l
-                     in compValueList2CompValue (concat res)
+    ListVal l -> let ok p = [withBinding vname p (eval exp)]
+                     in compValueList2CompValue (concat $ leftMap ok l)
     _ -> abort (EBadArg "the result of CCFor should be a list")
 
 eval (Compr exp ((CCFor vname q):qs)) = do
   qRes <- eval q
   case qRes of
-    ListVal l -> let ok p | p `elem` l = [withBinding vname p (eval (Compr exp qs))]
-                          in let res = map ok l
-                          in compValueList2CompValue (concat res)
+    ListVal l -> let ok p = [withBinding vname p (eval (Compr exp qs))]
+                  in compValueList2CompValue (concat $ leftMap ok l)
     _ -> abort (EBadArg "the result of CCFor should be a list")
+
+
+{- 
+  leftMap : helper function for eval Compr expression
+  If we use map from standard library, the last expression in the 
+  list will be evaluated first, which is actually not what we want.
+  So, we have to implement a left first version of map, that's exactly 
+  what leftMap does.
+-}
+leftMap :: (a -> b) -> [a] -> [b]
+leftMap f l = foldr (\x acc -> acc ++ [f x]) [] l
 
 {-
   compValueList2CompValue: helper function for eval Compr expression
