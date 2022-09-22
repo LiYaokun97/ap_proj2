@@ -1,0 +1,8 @@
+[    
+    SDef "mylist" (
+        Compr (List [Var "x", Var "y"]) 
+            [CCFor "x" (Call "range" [(Const (IntVal 1)), (Const (IntVal 3))]),
+                CCFor "y" (List [(Const (StringVal "a")), (Const (StringVal "bc"))])       ]
+    ),
+    SExp (Call "print" [Var "mylist"])
+]

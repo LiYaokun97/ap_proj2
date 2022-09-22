@@ -1,0 +1,11 @@
+[SDef "squares"
+      (Compr  (Var "x")
+             [CCFor "x" (Call "range" [Const (IntVal 10) ]),
+              CCIf (Oper Greater (Var "x") (Const (IntVal 100) ) )
+             ]),
+ SExp (Call "print" [Var "squares"])
+]
+
+
+output:
+[]

@@ -1,0 +1,7 @@
+[     SDef "x" (Const (IntVal 100)),
+
+      SDef "xs" (Compr (Var "x") [CCIf (Const TrueVal)]),
+
+      SExp (Call "print" [Var "xs"])
+
+]
