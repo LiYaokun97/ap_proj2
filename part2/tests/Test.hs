@@ -20,4 +20,23 @@ tests = testGroup "Stubby tests"
    testCase "execute misc.ast from handout" $
      do pgm <- read <$> readFile "examples/misc.ast"
         out <- readFile "examples/misc.out"
-        execute pgm @?= (lines out, Nothing)]
+        execute pgm @?= (lines out, Nothing),
+
+    testCase "type integer" $
+    execute [SExp (Oper Plus (Const (IntVal 3)) (Const (StringVal "a")))]
+    @?= ([], Just (EBadArg "Can only plus Int")),
+
+    testCase "type list" $
+    execute [SExp (Oper In (Const (StringVal "1")) (Const (StringVal "123")))]
+    @?= ([], Just (EBadArg "In EBadArg")),
+
+    testCase "type range" $
+    execute [SDef "squares"(Compr (Oper Times (Var "x") (Var "x"))[CCFor "x" (Call "range" [Const (IntVal 1), Const (IntVal 10), Const (IntVal 0)])])]
+    @?= ([], Just (EBadArg "the step in range can not be 0")),
+
+    testCase "type range 2" $
+    execute [SDef "squares"(Compr (Oper Times (Var "x") (Var "x"))[CCFor "x" (Call "range" [ Const (StringVal "123")])])]
+    @?= ([], Just (EBadArg "the parameters of range is wrong"))     
+        
+        
+        ]
