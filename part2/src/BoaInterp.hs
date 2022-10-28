@@ -87,11 +87,11 @@ operate Minus _ _ = Left  "minus can only accpet integers"
 operate Times (IntVal x) (IntVal y) = Right (IntVal (x * y))
 operate Times _ _ = Left  "times can only accept integers"
 
-operate Div (IntVal x) (IntVal 0) = Left  "divide by zero"
+operate Div (IntVal _) (IntVal 0) = Left  "divide by zero"
 operate Div (IntVal x) (IntVal y) = Right (IntVal (x `div` y))
 operate Div _ _ = Left  "div can only accept integers"
 
-operate Mod (IntVal x) (IntVal 0) = Left "mod by zero"
+operate Mod (IntVal _) (IntVal 0) = Left "mod by zero"
 operate Mod (IntVal x) (IntVal y) = Right (IntVal (x `mod` y))
 operate Mod _ _ = Left  "mod can only accept integers"
 
@@ -117,7 +117,7 @@ operate In v (ListVal mList) = if helper v mList
     Right TrueVal
   else
     Right FalseVal
-  where helper v' [] = False
+  where helper _ [] = False
         helper v' (x:xs) = (operate Eq v' x == Right TrueVal) || helper v' xs
 
 operate In _ _ = Left "in can only used in list variable"
@@ -146,7 +146,7 @@ apply "range" _ = abort (EBadArg "the parameters of range is wrong")
 apply "print" [] = Comp {runComp = \_ -> (Right NoneVal, [""])}
 apply "print" argList = Comp{runComp = \_ -> (Right NoneVal, [getPrintResult argList])}
 
-apply f argList = abort $ EBadFun f
+apply f _ = abort $ EBadFun f
 
 getPrintResult :: [Value] -> String
 getPrintResult argList = fst (foldl

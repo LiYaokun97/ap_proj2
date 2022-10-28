@@ -18,12 +18,6 @@
                                                  Var "i"])]),
  SExp (Call "print" [Const (StringVal "Printing all primes below"),
                      Oper Times (Var "n") (Var "n")]),
-SExp (Call "print" [Var "composites"]),
-SDef "testlist" (Compr (Var "x")
-             [CCFor "x" (Call "range" [Const (IntVal 2),
-                                       Oper Times (Var "n") (Var "n")]),
-              CCIf (Not (Oper In (Var "x") (Var "composites")))]),
- SExp (Call "print" [Var "testlist"]),
  SExp (Compr (Call "print" [Var "x"])
              [CCFor "x" (Call "range" [Const (IntVal 2),
                                        Oper Times (Var "n") (Var "n")]),

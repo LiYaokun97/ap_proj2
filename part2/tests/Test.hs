@@ -36,7 +36,18 @@ tests = testGroup "Stubby tests"
 
     testCase "type range 2" $
     execute [SDef "squares"(Compr (Oper Times (Var "x") (Var "x"))[CCFor "x" (Call "range" [ Const (StringVal "123")])])]
-    @?= ([], Just (EBadArg "the parameters of range is wrong"))     
+    @?= ([], Just (EBadArg "the parameters of range is wrong")),     
         
-        
-        ]
+
+    testCase "oper test" $
+    execute [     
+      SDef "x" (Const (IntVal 100)),
+      SDef "xs" (Const (ListVal [(IntVal 1000), (IntVal 100)])),
+      SDef "y" (Const (ListVal [(IntVal 1000), TrueVal, NoneVal])),
+      SDef "z" (Const (ListVal [(IntVal 1000), ListVal [NoneVal, (IntVal 200)], NoneVal])),
+      SDef "empty" (Const (ListVal [])),
+      SExp (Call "print" [Oper In (Var "x") (Var "xs")]),
+      SExp (Call "print" [Oper In (Var "x") (Var "y")]),
+      SExp (Call "print" [Oper In (Var "x") (Var "z")]),
+      SExp (Call "print" [Oper In (Var "x") (Var "empty")])]
+    @?= (["True","False","False","False"], Nothing)]

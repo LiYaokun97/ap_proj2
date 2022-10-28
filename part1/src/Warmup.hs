@@ -1,7 +1,9 @@
 -- Edit all the definitions with "undefined"
+{-# LANGUAGE InstanceSigs #-}
 module Warmup where
 
 import Control.Monad
+import GHC.Generics (Datatype(moduleName), R)
 
 type ReadData = Int
 type WriteData = String  -- must be an instance of Monoid
@@ -13,11 +15,15 @@ newtype RWSP a = RWSP {runRWSP :: ReadData -> StateData ->
 
 -- complete the definitions
 instance Monad RWSP where
-  return a = undefined
-  m >>= f = undefined
+  return :: a -> RWSP a
+  return a = RWSP {runRWSP = \_ s -> (a, mempty, s)}
+  (>>=) :: RWSP a -> (a -> RWSP b) -> RWSP b
+  m >>= f = RWSP { runRWSP = \r s -> (let (x, w, s') = runRWSP m r s in
+   let (x2, w2, s2) = runRWSP (f x) r s' in (x2, w ++ w2 ,s2) )}
 
 -- No need to touch these
 instance Functor RWSP where
+  fmap :: (a -> b) -> RWSP a -> RWSP b
   fmap = liftM
 instance Applicative RWSP where
   pure = return; (<*>) = ap
@@ -28,19 +34,19 @@ askP = RWSP (\r s -> (r, mempty, s))  -- freebie
 
 -- runs computation with new read data
 withP :: ReadData -> RWSP a -> RWSP a
-withP r' m = undefined
+withP r' m = RWSP (\_ s -> let (a, w, _) = (runRWSP m) r' s in (a, w, s))
 
 -- adds some write data to accumulator
 tellP :: WriteData -> RWSP ()
-tellP w = undefined
+tellP w = RWSP {runRWSP = (\_ s -> ((), w, s))}
 
 -- returns current state data
 getP :: RWSP StateData
-getP = undefined
+getP = RWSP {runRWSP = \_ s -> (s, mempty, s)}
 
 -- overwrites the state data
 putP :: StateData -> RWSP ()
-putP s' = undefined
+putP s' = RWSP {runRWSP = \r s -> (() , mempty, s')}
 
 -- sample computation using all features
 type Answer = String
@@ -68,31 +74,43 @@ newtype RWSE a = RWSE {runRWSE :: ReadData -> StateData ->
 
 -- Hint: here you may want to exploit that "Either ErrorData" is itself a monad
 instance Monad RWSE where
-  return a = undefined
-  m >>= f = undefined
+  return :: a -> RWSE a
+  return a = RWSE {runRWSE = \r s -> Right (a, mempty, s)}
+  (>>=) :: RWSE a -> (a -> RWSE b) -> RWSE b
+  m >>= f = RWSE { runRWSE = \r s -> case runRWSE m r s of
+    Left e -> Left e
+    Right (a, w, s') -> case runRWSE (f a) r s' of
+      Left e -> Left e
+      Right (a', w', s'') -> Right (a', w ++ w', s'')
+  }
 
 instance Functor RWSE where
   fmap = liftM
 instance Applicative RWSE where
   pure = return; (<*>) = ap
 
+-- 为什么mempty特指WriteData，mempty难道不指整体为空么？
 askE :: RWSE ReadData
-askE = undefined
+askE = RWSE {runRWSE = \r s -> Right (r, mempty, s)}
 
 withE :: ReadData -> RWSE a -> RWSE a
-withE r' m = undefined
+withE r' m = RWSE {runRWSE = \_ s -> case runRWSE m r' s of 
+  Left e -> Left e
+  Right (a, w', s') -> Right (a, w', s')
+  }
 
 tellE :: WriteData -> RWSE ()
-tellE w = undefined
+tellE w = RWSE {runRWSE = \_ s -> Right ((), w, s)}
 
 getE :: RWSE StateData
-getE = undefined
+getE = RWSE {runRWSE = \_ s -> Right (s, mempty, s)}
 
 putE :: StateData -> RWSE ()
-putE s' = undefined
+putE s' =  RWSE {runRWSE = \_ _ -> Right ((), mempty, s')}
 
 throwE :: ErrorData -> RWSE a
-throwE e = undefined
+throwE e =  RWSE {runRWSE = \_ _ -> Left e}
+
 
 sampleE :: RWSE Answer
 sampleE =
